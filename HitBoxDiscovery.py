@@ -132,6 +132,7 @@ if uploaded_files:
                 ax.semilogx(nl3_targets[:, 0], nl3_targets[:, rem_index+1], 'k*-', label=f"Prescription Targets - REM {rem_index+1}")
             ax.set_xlabel("Frequency (Hz)")
             ax.set_ylabel("Insertion Gain (dB)")
+            ax.set_ylim([-12, 40])
             ax.set_title(f"HIT Probe Curves - REM {rem_index+1}")
             ax.grid(True)
             ax.legend()
