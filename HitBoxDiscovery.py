@@ -23,19 +23,16 @@ def parse_json(json_data):
     audiometry = None
     hit_data = None
     
-    # Extract session 1 (Audiometry) if available
-    if session_count >= 1:
-        session1 = json_data['Sessions'][0]
-        if 'DataSets' in session1:
-            data_set = session1['DataSets'][0] if isinstance(session1['DataSets'], list) else session1['DataSets']
-            audiometry = data_set.get('Data', {}).get('Collection', [])
-    
-    # Extract session 2 (HIT Probe Curves) if available
-    if session_count >= 2:
-        session2 = json_data['Sessions'][1]
-        if 'DataSets' in session2:
-            data_set_2 = session2['DataSets'][0] if isinstance(session2['DataSets'], list) else session2['DataSets']
-            hit_data = data_set_2.get('Data', {}).get('Collection', [])
+    # Extract session data dynamically based on available data
+    for session in json_data['Sessions']:
+        if 'DataSets' in session:
+            data_set = session['DataSets'][0] if isinstance(session['DataSets'], list) else session['DataSets']
+            data = data_set.get('Data', {}).get('Collection', [])
+            
+            if any('Earside' in item for item in data):
+                audiometry = data  # This is the audiometry session
+            elif any('Points' in item for item in data):
+                hit_data = data  # This is the HIT Probe session
     
     return audiometry, hit_data
 
@@ -79,7 +76,7 @@ if uploaded_files:
         
         data_store.append((file_name, legends[file_name], audiometry, hit_data))
     
-    # Plot Audiometry Data only if session 1 exists
+    # Plot Audiometry Data only if audiometry session exists
     if any(aud is not None for _, _, aud, _ in data_store):
         st.subheader("Audiometric Data")
         fig, ax = plt.subplots()
@@ -111,7 +108,7 @@ if uploaded_files:
         ax.legend()
         st.pyplot(fig)
     
-    # Plot HIT Probe Data if session 2 exists
+    # Plot HIT Probe Data if available
     if any(hit is not None for _, _, _, hit in data_store):
         st.subheader("HIT Probe Input-Output Curves")
         for rem_index in range(3):  # Ensure three REM measures are plotted separately
