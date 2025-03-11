@@ -77,20 +77,23 @@ targets_file = st.file_uploader("Upload Targets File", type=["xlsx"])
 
 # Load reference Targets
 @st.cache_data
-def load_targets(file_path):
-    if not os.path.exists(file_path):
-        st.error(f"❌ '{file_path}' not found. Please upload the file.")
+def load_targets(uploaded_file):
+    if uploaded_file is None:
         return None
-    targets_df = pd.read_excel(file_path, usecols=[0, 4, 5, 6])
-    return targets_df.to_numpy()
+    try:
+        targets_df = pd.read_excel(uploaded_file, usecols=[0, 4, 5, 6])
+        return targets_df.to_numpy()
+    except Exception as e:
+        st.error(f"❌ Error loading targets file: {e}")
+        return None
 
 nl3_targets = None
-if st.button("Load Prescription Targets"):
+if targets_file is not None:
     nl3_targets = load_targets(targets_file)
     if nl3_targets is not None:
-        st.success(f"NL3 Targets loaded from {targets_file} successfully!")
+        st.success("Prescription Targets loaded successfully!")
 
-if uploaded_files and targets_file is not None and nl3_targets is not None:
+if uploaded_files and nl3_targets is not None:
     legends = {}
     data_store = []
     
@@ -132,7 +135,7 @@ if uploaded_files and targets_file is not None and nl3_targets is not None:
     
     # Overlay NL3 Targets if loaded
     if nl3_targets is not None:
-        ax.semilogx(nl3_targets[:, 0], nl3_targets[:, 1], 'k*-', label="NL3 Targets")
+        ax.semilogx(nl3_targets[:, 0], nl3_targets[:, 1], 'k*-', label="Prescription Targets")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Insertion Gain (dB)")
     ax.set_title("HIT Probe Curves")
