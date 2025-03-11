@@ -5,6 +5,7 @@ import pandas as pd
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 # Function to clean JSON text
 def clean_json(json_text):
@@ -39,7 +40,7 @@ def parse_json(json_data):
                     levels_right.append(point['Level'])
                 else:
                     levels_left.append(point['Level'])
-
+    
     # Extract session 2 (HIT Probe Curves)
     if len(json_data['Sessions']) < 2:
         st.error("Invalid JSON: No second session found")
@@ -72,16 +73,22 @@ st.write("Upload JSON files to analyze and visualize audiometry & hearing instru
 
 uploaded_files = st.file_uploader("Upload JSON files", type="json", accept_multiple_files=True)
 
+targets_file = st.text_input("Enter Targets File Name", "Targets.xlsx")
+
 # Load reference Targets
 @st.cache_data
-def load_targets():
-    targets_df = pd.read_excel("Targets.xlsx", usecols=[0, 4, 5, 6])
+def load_targets(file_path):
+    if not os.path.exists(file_path):
+        st.error(f"❌ '{file_path}' not found. Please upload the file.")
+        return None
+    targets_df = pd.read_excel(file_path, usecols=[0, 4, 5, 6])
     return targets_df.to_numpy()
 
 nl3_targets = None
-if st.button("Load Precription Targets"):
-    nl3_targets = load_targets()
-    st.success("NL3 Targets loaded successfully!")
+if st.button("Load Prescription Targets"):
+    nl3_targets = load_targets(targets_file)
+    if nl3_targets is not None:
+        st.success(f"NL3 Targets loaded from {targets_file} successfully!")
 
 if uploaded_files:
     legends = {}
@@ -102,8 +109,11 @@ if uploaded_files:
     st.subheader("Audiometric Data")
     fig, ax = plt.subplots()
     for _, legend, (freq, levels_right, levels_left), _ in data_store:
-        ax.semilogx(freq, levels_right, 'o-', label=f"{legend} - Right Ear")
-        ax.semilogx(freq, levels_left, 'o-', label=f"{legend} - Left Ear")
+        if len(freq) == len(levels_right) and len(freq) == len(levels_left):
+            ax.semilogx(freq, levels_right, 'o-', label=f"{legend} - Right Ear")
+            ax.semilogx(freq, levels_left, 'o-', label=f"{legend} - Left Ear")
+        else:
+            st.warning(f"⚠️ Skipping {legend} due to mismatched data dimensions.")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Hearing Level (dB HL)")
     ax.set_title("Audiometric Thresholds")
@@ -115,7 +125,10 @@ if uploaded_files:
     st.subheader("HIT Probe Input-Output Curves")
     fig, ax = plt.subplots()
     for _, legend, _, (hit_freq, input_levels, output_levels) in data_store:
-        ax.semilogx(hit_freq, np.array(output_levels) - np.array(input_levels), '*-', label=legend)
+        if len(hit_freq) == len(input_levels) == len(output_levels):
+            ax.semilogx(hit_freq, np.array(output_levels) - np.array(input_levels), '*-', label=legend)
+        else:
+            st.warning(f"⚠️ Skipping {legend} due to mismatched HIT data dimensions.")
     
     # Overlay NL3 Targets if loaded
     if nl3_targets is not None:
