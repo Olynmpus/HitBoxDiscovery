@@ -57,15 +57,19 @@ def parse_json(json_data):
         data_set_2 = session2['DataSets']  # Already a dictionary
 
     hit_data = data_set_2.get('Data', {}).get('Collection', [])
-    hit_freq, input_levels, output_levels = [], [], []
+    hit_freqs, input_levels, output_levels = [], [], []
     for item in hit_data:
         points = item.get('Points', [])
+        freq_list, input_list, output_list = [], [], []
         for point in points:
-            hit_freq.append(point['Frequency'])
-            input_levels.append(point['Input'])
-            output_levels.append(point['Output'])
+            freq_list.append(point['Frequency'])
+            input_list.append(point['Input'])
+            output_list.append(point['Output'])
+        hit_freqs.append(freq_list)
+        input_levels.append(input_list)
+        output_levels.append(output_list)
     
-    return (freq, levels_right, levels_left), (hit_freq, input_levels, output_levels)
+    return (freq, levels_right, levels_left), (hit_freqs, input_levels, output_levels)
 
 # Streamlit UI
 st.title("MedRx HitBox Data Viewer")
@@ -124,21 +128,22 @@ if uploaded_files and nl3_targets is not None:
     ax.legend()
     st.pyplot(fig)
     
-    # Plot HIT Probe Data
+    # Plot HIT Probe Data for each REM measure
     st.subheader("HIT Probe Input-Output Curves")
-    fig, ax = plt.subplots()
-    for _, legend, _, (hit_freq, input_levels, output_levels) in data_store:
-        if len(hit_freq) == len(input_levels) == len(output_levels):
-            ax.semilogx(hit_freq, np.array(output_levels) - np.array(input_levels), '*-', label=legend)
-        else:
-            st.warning(f"⚠️ Skipping {legend} due to mismatched HIT data dimensions.")
-    
-    # Overlay NL3 Targets if loaded
-    if nl3_targets is not None:
-        ax.semilogx(nl3_targets[:, 0], nl3_targets[:, 1], 'k*-', label="Prescription Targets")
-    ax.set_xlabel("Frequency (Hz)")
-    ax.set_ylabel("Insertion Gain (dB)")
-    ax.set_title("HIT Probe Curves")
-    ax.grid(True)
-    ax.legend()
-    st.pyplot(fig)
+    for rem_index in range(3):  # Ensure three REM measures are plotted separately
+        fig, ax = plt.subplots()
+        for _, legend, _, (hit_freqs, input_levels, output_levels) in data_store:
+            if rem_index < len(hit_freqs):
+                ax.semilogx(hit_freqs[rem_index], np.array(output_levels[rem_index]) - np.array(input_levels[rem_index]), '*-', label=f"{legend} - REM {rem_index+1}")
+            else:
+                st.warning(f"⚠️ Skipping {legend} REM {rem_index+1} due to missing data.")
+        
+        # Overlay NL3 Targets if loaded
+        if nl3_targets is not None:
+            ax.semilogx(nl3_targets[:, 0], nl3_targets[:, rem_index+1], 'k*-', label=f"Prescription Targets - REM {rem_index+1}")
+        ax.set_xlabel("Frequency (Hz)")
+        ax.set_ylabel("Insertion Gain (dB)")
+        ax.set_title(f"HIT Probe Curves - REM {rem_index+1}")
+        ax.grid(True)
+        ax.legend()
+        st.pyplot(fig)
