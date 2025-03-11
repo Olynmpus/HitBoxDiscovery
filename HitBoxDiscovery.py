@@ -1,6 +1,5 @@
 # Author Jorge Mejia, 2025
 # HitBoxDiscovery.py
-
 import streamlit as st
 import pandas as pd
 import json
@@ -25,7 +24,12 @@ def parse_json(json_data):
         st.error("Invalid JSON: No DataSets found in Session 1")
         return None, None
     
-    audiometry = session1['DataSets'].get('Data', {}).get('Collection', [])
+    if isinstance(session1['DataSets'], list):  
+        data_set = session1['DataSets'][0]  # Assuming the first dataset is required
+    else:  
+        data_set = session1['DataSets']  # Already a dictionary
+
+    audiometry = data_set.get('Data', {}).get('Collection', [])
     freq, levels_right, levels_left = [], [], []
     for item in audiometry:
         if 'Earside' in item and 'Collection' in item:
@@ -35,14 +39,23 @@ def parse_json(json_data):
                     levels_right.append(point['Level'])
                 else:
                     levels_left.append(point['Level'])
-    
+
     # Extract session 2 (HIT Probe Curves)
     if len(json_data['Sessions']) < 2:
         st.error("Invalid JSON: No second session found")
         return None, None
     
     session2 = json_data['Sessions'][1]
-    hit_data = session2['DataSets'].get('Data', {}).get('Collection', [])
+    if 'DataSets' not in session2:
+        st.error("Invalid JSON: No DataSets found in Session 2")
+        return None, None
+    
+    if isinstance(session2['DataSets'], list):  
+        data_set_2 = session2['DataSets'][0]  # Assuming first dataset is relevant
+    else:  
+        data_set_2 = session2['DataSets']  # Already a dictionary
+
+    hit_data = data_set_2.get('Data', {}).get('Collection', [])
     hit_freq, input_levels, output_levels = [], [], []
     for item in hit_data:
         points = item.get('Points', [])
@@ -113,28 +126,3 @@ if uploaded_files:
     ax.grid(True)
     ax.legend()
     st.pyplot(fig)
-
-    # Export Data to Excel
-    st.subheader("Export Data")
-    if st.button("Download Excel File"):
-        excel_data = {
-            "File Name": [], "Legend": [], "Frequency (Hz)": [], "Right Ear (dB HL)": [], "Left Ear (dB HL)": [],
-            "HIT Frequency (Hz)": [], "Input Level (dB)": [], "Output Level (dB)": []
-        }
-        
-        for file_name, legend, (freq, levels_right, levels_left), (hit_freq, input_levels, output_levels) in data_store:
-            excel_data["File Name"].extend([file_name] * len(freq))
-            excel_data["Legend"].extend([legend] * len(freq))
-            excel_data["Frequency (Hz)"].extend(freq)
-            excel_data["Right Ear (dB HL)"].extend(levels_right)
-            excel_data["Left Ear (dB HL)"].extend(levels_left)
-            excel_data["HIT Frequency (Hz)"].extend(hit_freq)
-            excel_data["Input Level (dB)"].extend(input_levels)
-            excel_data["Output Level (dB)"].extend(output_levels)
-        
-        df = pd.DataFrame(excel_data)
-        excel_filename = "Processed_HitBox_Data.xlsx"
-        df.to_excel(excel_filename, index=False)
-        
-        st.success(f"Data exported successfully as {excel_filename}")
-        st.download_button(label="Download Excel", data=df.to_excel(index=False, engine='openpyxl'), file_name=excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
