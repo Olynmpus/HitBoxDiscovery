@@ -19,57 +19,25 @@ def parse_json(json_data):
         st.error("Invalid JSON: Missing 'Sessions'")
         return None, None
 
-    # Extract session 1 (Audiometry)
-    session1 = json_data['Sessions'][0]
-    if 'DataSets' not in session1:
-        st.error("Invalid JSON: No DataSets found in Session 1")
-        return None, None
+    session_count = len(json_data['Sessions'])
+    audiometry = None
+    hit_data = None
     
-    if isinstance(session1['DataSets'], list):  
-        data_set = session1['DataSets'][0]  # Assuming the first dataset is required
-    else:  
-        data_set = session1['DataSets']  # Already a dictionary
-
-    audiometry = data_set.get('Data', {}).get('Collection', [])
-    freq, levels_right, levels_left = [], [], []
-    for item in audiometry:
-        if 'Earside' in item and 'Collection' in item:
-            for point in item['Collection']:
-                freq.append(point['Frequency'])
-                if item['Earside'] == 'Right':
-                    levels_right.append(point['Level'])
-                else:
-                    levels_left.append(point['Level'])
+    # Extract session 1 (Audiometry) if available
+    if session_count >= 1:
+        session1 = json_data['Sessions'][0]
+        if 'DataSets' in session1:
+            data_set = session1['DataSets'][0] if isinstance(session1['DataSets'], list) else session1['DataSets']
+            audiometry = data_set.get('Data', {}).get('Collection', [])
     
-    # Extract session 2 (HIT Probe Curves)
-    if len(json_data['Sessions']) < 2:
-        st.error("Invalid JSON: No second session found")
-        return None, None
+    # Extract session 2 (HIT Probe Curves) if available
+    if session_count >= 2:
+        session2 = json_data['Sessions'][1]
+        if 'DataSets' in session2:
+            data_set_2 = session2['DataSets'][0] if isinstance(session2['DataSets'], list) else session2['DataSets']
+            hit_data = data_set_2.get('Data', {}).get('Collection', [])
     
-    session2 = json_data['Sessions'][1]
-    if 'DataSets' not in session2:
-        st.error("Invalid JSON: No DataSets found in Session 2")
-        return None, None
-    
-    if isinstance(session2['DataSets'], list):  
-        data_set_2 = session2['DataSets'][0]  # Assuming first dataset is relevant
-    else:  
-        data_set_2 = session2['DataSets']  # Already a dictionary
-
-    hit_data = data_set_2.get('Data', {}).get('Collection', [])
-    hit_freqs, input_levels, output_levels = [], [], []
-    for item in hit_data:
-        points = item.get('Points', [])
-        freq_list, input_list, output_list = [], [], []
-        for point in points:
-            freq_list.append(point['Frequency'])
-            input_list.append(point['Input'])
-            output_list.append(point['Output'])
-        hit_freqs.append(freq_list)
-        input_levels.append(input_list)
-        output_levels.append(output_list)
-    
-    return (freq, levels_right, levels_left), (hit_freqs, input_levels, output_levels)
+    return audiometry, hit_data
 
 # Streamlit UI
 st.title("MedRx HitBox Data Viewer")
@@ -97,7 +65,7 @@ if targets_file is not None:
     if nl3_targets is not None:
         st.success("Prescription Targets loaded successfully!")
 
-if uploaded_files and nl3_targets is not None:
+if uploaded_files:
     legends = {}
     data_store = []
     
@@ -107,43 +75,59 @@ if uploaded_files and nl3_targets is not None:
         
         json_text = file.read().decode('utf-8')
         json_data = clean_json(json_text)
-        aud_data, hit_data = parse_json(json_data)
+        audiometry, hit_data = parse_json(json_data)
         
-        if aud_data and hit_data:
-            data_store.append((file_name, legends[file_name], aud_data, hit_data))
+        data_store.append((file_name, legends[file_name], audiometry, hit_data))
     
-    # Plot Audiometry Data
-    st.subheader("Audiometric Data")
-    fig, ax = plt.subplots()
-    for _, legend, (freq, levels_right, levels_left), _ in data_store:
-        if len(freq) == len(levels_right) and len(freq) == len(levels_left):
-            ax.semilogx(freq, levels_right, 'o-', label=f"{legend} - Right Ear")
-            ax.semilogx(freq, levels_left, 'o-', label=f"{legend} - Left Ear")
-        else:
-            st.warning(f"⚠️ Skipping {legend} due to mismatched data dimensions.")
-    ax.set_xlabel("Frequency (Hz)")
-    ax.set_ylabel("Hearing Level (dB HL)")
-    ax.set_title(f"Audiometric Thresholds - {legend}")
-    ax.grid(True)
-    ax.legend()
-    st.pyplot(fig)
-    
-    # Plot HIT Probe Data for each REM measure
-    st.subheader("HIT Probe Input-Output Curves")
-    for rem_index in range(3):  # Ensure three REM measures are plotted separately
+    # Plot Audiometry Data only if session 1 exists
+    if any(aud is not None for _, _, aud, _ in data_store):
+        st.subheader("Audiometric Data")
         fig, ax = plt.subplots()
-        for _, legend, _, (hit_freqs, input_levels, output_levels) in data_store:
-            if rem_index < len(hit_freqs):
-                ax.semilogx(hit_freqs[rem_index], np.array(output_levels[rem_index]) - np.array(input_levels[rem_index]), '*-', label=f"{legend} - REM {rem_index+1}")
-            else:
-                st.warning(f"⚠️ Skipping {legend} REM {rem_index+1} due to missing data.")
-        
-        # Overlay NL3 Targets if loaded
-        if nl3_targets is not None:
-            ax.semilogx(nl3_targets[:, 0], nl3_targets[:, rem_index+1], 'k*-', label=f"Prescription Targets - REM {rem_index+1}")
+        for _, legend, audiometry, _ in data_store:
+            if audiometry:
+                freq, levels_right, levels_left = [], [], []
+                for item in audiometry:
+                    if 'Earside' in item and 'Collection' in item:
+                        for point in item['Collection']:
+                            freq.append(point['Frequency'])
+                            if item['Earside'] == 'Right':
+                                levels_right.append(point['Level'])
+                            else:
+                                levels_left.append(point['Level'])
+                ax.semilogx(freq, levels_right, 'o-', label=f"{legend} - Right Ear")
+                ax.semilogx(freq, levels_left, 'o-', label=f"{legend} - Left Ear")
         ax.set_xlabel("Frequency (Hz)")
-        ax.set_ylabel("Insertion Gain (dB)")
-        ax.set_title(f"HIT Probe Curves - {legend} - REM {rem_index+1}")
+        ax.set_ylabel("Hearing Level (dB HL)")
+        ax.set_title("Audiometric Thresholds")
         ax.grid(True)
         ax.legend()
         st.pyplot(fig)
+    
+    # Plot HIT Probe Data if session 2 exists
+    if any(hit is not None for _, _, _, hit in data_store):
+        st.subheader("HIT Probe Input-Output Curves")
+        for rem_index in range(3):  # Ensure three REM measures are plotted separately
+            fig, ax = plt.subplots()
+            for _, legend, _, hit_data in data_store:
+                if hit_data:
+                    hit_freqs, input_levels, output_levels = [], [], []
+                    for item in hit_data:
+                        points = item.get('Points', [])
+                        freq_list, input_list, output_list = [], [], []
+                        for point in points:
+                            freq_list.append(point['Frequency'])
+                            input_list.append(point['Input'])
+                            output_list.append(point['Output'])
+                        hit_freqs.append(freq_list)
+                        input_levels.append(input_list)
+                        output_levels.append(output_list)
+                    if rem_index < len(hit_freqs):
+                        ax.semilogx(hit_freqs[rem_index], np.array(output_levels[rem_index]) - np.array(input_levels[rem_index]), '*-', label=f"{legend} - REM {rem_index+1}")
+            if nl3_targets is not None:
+                ax.semilogx(nl3_targets[:, 0], nl3_targets[:, rem_index+1], 'k*-', label=f"Prescription Targets - REM {rem_index+1}")
+            ax.set_xlabel("Frequency (Hz)")
+            ax.set_ylabel("Insertion Gain (dB)")
+            ax.set_title(f"HIT Probe Curves - REM {rem_index+1}")
+            ax.grid(True)
+            ax.legend()
+            st.pyplot(fig)
