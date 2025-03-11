@@ -79,7 +79,7 @@ def load_targets():
     return targets_df.to_numpy()
 
 nl3_targets = None
-if st.button("Load NL3 Targets"):
+if st.button("Load Precription Targets"):
     nl3_targets = load_targets()
     st.success("NL3 Targets loaded successfully!")
 
