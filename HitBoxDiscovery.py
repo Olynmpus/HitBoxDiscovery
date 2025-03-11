@@ -73,7 +73,7 @@ st.write("Upload JSON files to analyze and visualize audiometry & hearing instru
 
 uploaded_files = st.file_uploader("Upload JSON files", type="json", accept_multiple_files=True)
 
-targets_file = st.text_input("Enter Targets File Name", "Targets.xlsx")
+targets_file = st.file_uploader("Upload Targets File", type=["xlsx"])
 
 # Load reference Targets
 @st.cache_data
@@ -90,7 +90,7 @@ if st.button("Load Prescription Targets"):
     if nl3_targets is not None:
         st.success(f"NL3 Targets loaded from {targets_file} successfully!")
 
-if uploaded_files:
+if uploaded_files and targets_file is not None and nl3_targets is not None:
     legends = {}
     data_store = []
     
