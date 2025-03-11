@@ -94,8 +94,16 @@ if uploaded_files:
                                 levels_right.append(point['Level'])
                             else:
                                 levels_left.append(point['Level'])
-                ax.semilogx(freq, levels_right, 'o-', label=f"{legend} - Right Ear")
-                ax.semilogx(freq, levels_left, 'o-', label=f"{legend} - Left Ear")
+                
+                # Ensure x (freq) and y (levels) match in length
+                min_length = min(len(freq), len(levels_right), len(levels_left))
+                freq = freq[:min_length]
+                levels_right = levels_right[:min_length]
+                levels_left = levels_left[:min_length]
+                
+                if min_length > 0:
+                    ax.semilogx(freq, levels_right, 'o-', label=f"{legend} - Right Ear")
+                    ax.semilogx(freq, levels_left, 'o-', label=f"{legend} - Left Ear")
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("Hearing Level (dB HL)")
         ax.set_title("Audiometric Thresholds")
